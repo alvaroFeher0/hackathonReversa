@@ -3,12 +3,13 @@ Bill-to-Law demo: CELEX + query date -> pipeline -> both models -> LLM reasons -
 
     .venv/bin/streamlit run demo/app.py
 
-LLM settings: see demo/llm.py (LLM_PROVIDER, LLM_API_KEY, LLM_MODEL, LLM_BASE_URL).
+LLM settings: see demo/llm.py (GROK_API_KEY in .env, or LLM_PROVIDER, LLM_API_KEY, LLM_MODEL, LLM_BASE_URL).
 """
 from __future__ import annotations
 
 import html
 import sys
+import time
 from datetime import date
 from pathlib import Path
 
@@ -19,11 +20,12 @@ import streamlit as st
 sys.path.insert(0, str(Path(__file__).resolve().parent))
 import architecture  # noqa: E402
 import llm  # noqa: E402
+import models_page  # noqa: E402
 import pipeline  # noqa: E402
 
 st.set_page_config(page_title="Bill-to-Law Predictor", page_icon="⚖️", layout="wide")
 
-GREEN, RED, CYAN, AMBER, VIOLET = "#34f5a4", "#ff4d6d", "#3ad7ff", "#ffb547", "#a78bfa"
+GREEN, RED, CYAN, AMBER, VIOLET, BLUE = "#34f5a4", "#ff4d6d", "#3ad7ff", "#ffb547", "#a78bfa", "#4d8dff"
 MUTED = "#8b93a7"
 
 st.markdown(f"""<style>
@@ -70,7 +72,7 @@ h1, h2, h3 {{ letter-spacing: -0.02em; }}
            box-shadow: -8px 0 18px -12px var(--c); color: #e6e9f2; font-size: .93rem; }}
 .reason-head {{ font-weight: 700; color: var(--c); text-shadow: 0 0 12px var(--c); margin-top: 6px; }}
 .spectrum {{ position: relative; height: 10px; border-radius: 6px; margin: 30px 4px 34px;
-             background: linear-gradient(90deg, {RED}, #6b7280 50%, #3b82f6); opacity: .9; }}
+             background: linear-gradient(90deg, {BLUE}, #6b7280 50%, {RED}); opacity: .9; }}
 .dot {{ position: absolute; top: -7px; width: 24px; height: 24px; margin-left: -12px; border-radius: 50%;
         border: 3px solid #0b0d16; }}
 .dot span {{ position: absolute; top: -24px; left: 50%; transform: translateX(-50%); white-space: nowrap;
@@ -83,8 +85,15 @@ h1, h2, h3 {{ letter-spacing: -0.02em; }}
 
 @st.cache_resource(show_spinner="Loading the embedding model and the proposal corpus (once per server)…")
 def warm_up() -> bool:
-    pipeline.warm_up()
-    return True
+    """Retried: the EUR-Lex endpoint often answers 502 for a few seconds. A failure is not cached."""
+    for attempt in range(3):
+        try:
+            pipeline.warm_up()
+            return True
+        except Exception:
+            if attempt == 2:
+                raise
+            time.sleep(5)
 
 
 @st.cache_data(show_spinner=False)
@@ -233,7 +242,7 @@ def economy_chart(f: dict) -> go.Figure | None:
 
 def timeline(r: dict) -> go.Figure:
     points = [("Proposal", r["filing_date"], VIOLET), ("Query date", r["query_date"], CYAN),
-              ("Predicted law", r["law_date"], GREEN)]
+              ("Predicted law", r["law_date"], BLUE)]
     fig = go.Figure()
     if r["milestones"]:
         fig.add_trace(go.Scatter(
@@ -267,12 +276,12 @@ def hero_probability(p: float) -> str:
 
 def hero_days(r: dict) -> str:
     left = r["days_left"]
-    sub = (f"≈ {left:,} days after the query date" if left >= 0
-           else f"predicted date already passed {-left:,} days ago: running late")
-    return (f'<div class="card hero" style="--c:{CYAN}"><div>'
-            f'<div class="hero-label">Predicted time to law</div>'
-            f'<div class="hero-big">{r["days_to_law"]:,} days</div>'
-            f'<div class="hero-sub">adoption around <b>{r["law_date"]:%d %B %Y}</b><br>{sub}</div>'
+    sub = (f"about {left / 30.44:.0f} months after the query date" if left >= 0
+           else "predicted date already passed: running late")
+    return (f'<div class="card hero" style="--c:{BLUE}"><div>'
+            f'<div class="hero-label">Predicted date of law</div>'
+            f'<div class="hero-big">{r["law_date"]:%d %B %Y}</div>'
+            f'<div class="hero-sub">{sub}</div>'
             f'<div class="hero-sub" style="color:{MUTED}">timing model · features as known on the query date</div></div></div>')
 
 
@@ -299,7 +308,11 @@ def predict_page() -> None:
         st.session_state["last"] = (celex.strip().upper(), qd)
     celex, qd = st.session_state["last"]
 
-    warm_up()
+    try:
+        warm_up()
+    except Exception as e:
+        st.error(f"EUR-Lex is not answering right now ({e.__class__.__name__}). Press Predict again in a minute.")
+        return
     with st.status(f"Running the pipeline for {celex} as of {qd:%d %b %Y}…", expanded=False) as status:
         try:
             r = predict(celex, qd)
@@ -344,7 +357,7 @@ def predict_page() -> None:
     st.subheader("Why? · LLM reading of the inputs")
     cfg = llm.config(secrets())
     if not cfg["key"]:
-        st.warning("No LLM configured: set LLM_API_KEY (and LLM_PROVIDER / LLM_MODEL) to get the six reasons.")
+        st.warning("No LLM configured: set GROK_API_KEY in .env (or LLM_API_KEY + LLM_PROVIDER) to get the six reasons.")
     else:
         try:
             with st.spinner(f"Asking {cfg['model']}…"):
@@ -352,7 +365,7 @@ def predict_page() -> None:
             c1, c2, c3 = st.columns(3)
             c1.markdown(reason_block("Why it could pass", why["pass"], GREEN), unsafe_allow_html=True)
             c2.markdown(reason_block("Why it might not", why["fail"], RED), unsafe_allow_html=True)
-            c3.markdown(reason_block(f"Why ~{r['days_to_law']:,} days", why["timing"], CYAN), unsafe_allow_html=True)
+            c3.markdown(reason_block(f"Why around {r['law_date']:%B %Y}", why["timing"], BLUE), unsafe_allow_html=True)
         except Exception as e:
             st.error(f"LLM call failed: {e}")
 
@@ -368,8 +381,12 @@ def predict_page() -> None:
 st.markdown('<div class="brand">Bill-to-Law Predictor</div>'
             '<div class="tag">Will an EU Commission proposal become law, and when? Using only what was known on the query date.</div>',
             unsafe_allow_html=True)
-tab_predict, tab_arch = st.tabs(["⚡ Predict", "🧭 Architecture"])
-with tab_predict:
-    predict_page()
+tab_predict, tab_models, tab_arch = st.tabs(["⚡ Predict", "📊 Models", "🧭 Architecture"])
+# The static tabs are drawn first: Streamlit fills tabs in code order, so they would otherwise stay
+# blank while a prediction runs.
+with tab_models:
+    models_page.render()
 with tab_arch:
     architecture.render()
+with tab_predict:
+    predict_page()

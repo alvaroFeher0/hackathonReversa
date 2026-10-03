@@ -1,0 +1,63 @@
+model,predictor,split,rows,proposals,metric,value
+approval (lifecycle_model),model,train,788,197,AUC,0.8549
+approval (lifecycle_model),model,train,788,197,Brier,0.1247
+approval (lifecycle_model),model,train,788,197,LogLoss,0.3972
+approval (lifecycle_model),model,train,788,197,Accuracy@0.5,0.8338
+approval (lifecycle_model),"model, filing-date rows only",train,197,197,AUC,0.7941
+approval (lifecycle_model),"model, filing-date rows only",train,197,197,Brier,0.1513
+approval (lifecycle_model),"model, filing-date rows only",train,197,197,LogLoss,0.4615
+approval (lifecycle_model),"model, filing-date rows only",train,197,197,Accuracy@0.5,0.7766
+approval (lifecycle_model),baseline: train approval rate,train,788,197,AUC,0.5
+approval (lifecycle_model),baseline: train approval rate,train,788,197,Brier,0.1894
+approval (lifecycle_model),baseline: train approval rate,train,788,197,LogLoss,0.5665
+approval (lifecycle_model),baseline: train approval rate,train,788,197,Accuracy@0.5,0.7462
+approval (lifecycle_model),baseline: approval rate per procedure type,train,788,197,AUC,0.5731
+approval (lifecycle_model),baseline: approval rate per procedure type,train,788,197,Brier,0.1802
+approval (lifecycle_model),baseline: approval rate per procedure type,train,788,197,LogLoss,0.5453
+approval (lifecycle_model),baseline: approval rate per procedure type,train,788,197,Accuracy@0.5,0.7563
+approval (lifecycle_model),model,test,262,66,AUC,0.7109
+approval (lifecycle_model),model,test,262,66,Brier,0.1722
+approval (lifecycle_model),model,test,262,66,LogLoss,0.5304
+approval (lifecycle_model),model,test,262,66,Accuracy@0.5,0.7634
+approval (lifecycle_model),"model, filing-date rows only",test,66,66,AUC,0.5738
+approval (lifecycle_model),"model, filing-date rows only",test,66,66,Brier,0.2119
+approval (lifecycle_model),"model, filing-date rows only",test,66,66,LogLoss,0.6376
+approval (lifecycle_model),"model, filing-date rows only",test,66,66,Accuracy@0.5,0.7121
+approval (lifecycle_model),baseline: train approval rate,test,262,66,AUC,0.5
+approval (lifecycle_model),baseline: train approval rate,test,262,66,Brier,0.1885
+approval (lifecycle_model),baseline: train approval rate,test,262,66,LogLoss,0.5644
+approval (lifecycle_model),baseline: train approval rate,test,262,66,Accuracy@0.5,0.7481
+approval (lifecycle_model),baseline: approval rate per procedure type,test,262,66,AUC,0.5096
+approval (lifecycle_model),baseline: approval rate per procedure type,test,262,66,Brier,0.1976
+approval (lifecycle_model),baseline: approval rate per procedure type,test,262,66,LogLoss,0.5834
+approval (lifecycle_model),baseline: approval rate per procedure type,test,262,66,Accuracy@0.5,0.7023
+timing (timing_model),model,train,7091,1448,MAE days,54.8103
+timing (timing_model),model,train,7091,1448,median AE,14.565
+timing (timing_model),model,train,7091,1448,bias (pred - true),-24.1764
+timing (timing_model),model,train,7091,1448,within 90d,0.8408
+timing (timing_model),model,train,7091,1448,within 45d,0.7349
+timing (timing_model),baseline: median total per procedure type,train,7091,1448,MAE days,154.2267
+timing (timing_model),baseline: median total per procedure type,train,7091,1448,median AE,53.5
+timing (timing_model),baseline: median total per procedure type,train,7091,1448,bias (pred - true),-29.2646
+timing (timing_model),baseline: median total per procedure type,train,7091,1448,within 90d,0.5738
+timing (timing_model),baseline: median total per procedure type,train,7091,1448,within 45d,0.4479
+timing (timing_model),baseline: median remaining per procedure x elapsed,train,7091,1448,MAE days,133.8594
+timing (timing_model),baseline: median remaining per procedure x elapsed,train,7091,1448,median AE,45.0
+timing (timing_model),baseline: median remaining per procedure x elapsed,train,7091,1448,bias (pred - true),-55.1588
+timing (timing_model),baseline: median remaining per procedure x elapsed,train,7091,1448,within 90d,0.6223
+timing (timing_model),baseline: median remaining per procedure x elapsed,train,7091,1448,within 45d,0.5027
+timing (timing_model),model,test,1104,226,MAE days,59.2191
+timing (timing_model),model,test,1104,226,median AE,28.2401
+timing (timing_model),model,test,1104,226,bias (pred - true),11.5466
+timing (timing_model),model,test,1104,226,within 90d,0.7998
+timing (timing_model),model,test,1104,226,within 45d,0.6476
+timing (timing_model),baseline: median total per procedure type,test,1104,226,MAE days,140.6196
+timing (timing_model),baseline: median total per procedure type,test,1104,226,median AE,52.0
+timing (timing_model),baseline: median total per procedure type,test,1104,226,bias (pred - true),94.5
+timing (timing_model),baseline: median total per procedure type,test,1104,226,within 90d,0.6141
+timing (timing_model),baseline: median total per procedure type,test,1104,226,within 45d,0.4239
+timing (timing_model),baseline: median remaining per procedure x elapsed,test,1104,226,MAE days,94.9719
+timing (timing_model),baseline: median remaining per procedure x elapsed,test,1104,226,median AE,37.0
+timing (timing_model),baseline: median remaining per procedure x elapsed,test,1104,226,bias (pred - true),39.1884
+timing (timing_model),baseline: median remaining per procedure x elapsed,test,1104,226,within 90d,0.6866
+timing (timing_model),baseline: median remaining per procedure x elapsed,test,1104,226,within 45d,0.5444
