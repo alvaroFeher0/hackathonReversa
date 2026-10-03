@@ -6,3 +6,5 @@ sentencepiece==0.2.2
 torch==2.14.1
 transformers==5.18.0
 uvicorn==0.54.0
+streamlit==1.65.0
+plotly==7.1.0
