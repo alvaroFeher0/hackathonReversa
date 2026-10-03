@@ -1,6 +1,6 @@
 """Commission proposals (EUR-Lex, document type PC) in a date range, with full English text.
 
-    python eurlex_texts.py [--from 2021-01-01] [--to 2026-10-03] [--limit N]
+    python -m apis.eurlex_texts [--from 2021-01-01] [--to 2026-10-03] [--limit N]
 
 Same set as the EUR-Lex advanced search "Preparatory acts / Commission proposals" filtered on
 "Date of document". One row per proposal -> data/eurlex_proposals.csv and .json
@@ -32,8 +32,9 @@ from bs4 import BeautifulSoup
 SPARQL_URL = "https://publications.europa.eu/webapi/rdf/sparql"
 CELEX_URL = "http://publications.europa.eu/resource/celex/{celex}"
 EURLEX_URL = "https://eur-lex.europa.eu/legal-content/EN/TXT/?uri=CELEX:{celex}"
-RAW = Path("data/raw/eurlex")
-OUT = Path("data/eurlex_proposals")
+DATA = Path(__file__).resolve().parent.parent / "data"
+RAW = DATA / "raw" / "eurlex"
+OUT = DATA / "eurlex_proposals"
 PAUSE = 1.0  # seconds between requests
 SUMMARY_CHARS = 700
 

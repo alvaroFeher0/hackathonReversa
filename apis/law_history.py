@@ -2,7 +2,7 @@
 
 HOW TO CALL EACH FUNCTION (AI Act CELEX is "32024R1689"):
 
-    from law_history import get_consultation_count, get_eu_votings
+    from apis.law_history import get_consultation_count, get_eu_votings
 
     # 1) Number of public consultations (Have Your Say portal)
     get_consultation_count("32024R1689")                  # -> 3
@@ -26,6 +26,7 @@ OUTPUTS:
 import json
 import re
 import statistics
+import urllib.error
 import urllib.parse
 import urllib.request
 from collections import Counter
@@ -45,8 +46,8 @@ _STOP = {"regulation", "of", "the", "european", "parliament", "and", "council",
 # ---------------------------------------------------------------------------
 
 def _normalize_celex(celex: str) -> str:
-    """Extract a clean CELEX (e.g. "32024R1689") from a plain id or a URL."""
-    m = re.search(r"3\d{4}[A-Z]\d{3,4}", str(celex).upper())
+    """Extract a clean CELEX from a plain id or a URL: a law ("32024R1689") or a proposal ("52021PC0206")."""
+    m = re.search(r"3\d{4}[A-Z]\d{3,4}|5\d{4}PC\d{4}", str(celex).upper())
     if not m:
         raise ValueError(f"Invalid CELEX {celex!r}. E.g. '32024R1689' (AI Act).")
     return m.group(0)
@@ -120,13 +121,18 @@ def _resolve_initiative_id(celex: str) -> str:
     coms.update(_norm_com(f"COM({m.group(1)}){m.group(2)}")
                 for m in re.finditer(r"COM_(\d{4})_0*(\d+)", notice))
     queries = [q for q in re.findall(r"\(([^()]{4,80})\)", title)]
-    core = re.sub(r"^(REGULATION|DIRECTIVE|DECISION)\b.*?(COUNCIL|PARLIAMENT)\s*", "", title)
+    core = re.sub(r"^(PROPOSAL FOR AN? )?(COUNCIL )?(REGULATION|DIRECTIVE|DECISION)\b.*?(COUNCIL|PARLIAMENT)\s*",
+                  "", title, flags=re.I)
     core = core.split(" AND AMENDING")[0].strip()
     if core:
         queries.append(core[:120])
     cands = {}
     for q in queries[:3]:
-        for c in _hys_search(q):
+        try:
+            hits = _hys_search(q)
+        except urllib.error.HTTPError:  # the portal rejects some long/odd queries (406): try the next one
+            continue
+        for c in hits:
             cands.setdefault(c["id"], c.get("shortTitle", ""))
     if not cands:
         raise LookupError(f"No Have Your Say initiative found for CELEX {celex}.")

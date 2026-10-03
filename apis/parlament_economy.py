@@ -15,7 +15,7 @@ from urllib.parse import quote
 from urllib.request import Request, urlopen
 from fastapi import FastAPI, HTTPException, Query
 START_DATE = date(2021, 1, 1)
-DATA_DIR = Path("data")
+DATA_DIR = Path(__file__).resolve().parent.parent / "data"
 DATASET_PATH = DATA_DIR / "weekly_europe_economy.csv"
 PARLIAMENT_CONTEXT_PATH = DATA_DIR / "eu_parliament_context.csv"
 LAW_SECTOR_PATTERNS: tuple[tuple[str, str], ...] = (

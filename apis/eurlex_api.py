@@ -1,7 +1,7 @@
 """Live API on EUR-Lex: every request reads the Commission proposal directly from the site.
 
     pip install fastapi uvicorn
-    uvicorn eurlex_api:app --reload
+    uvicorn apis.eurlex_api:app --reload        (from the repo root)
     open http://127.0.0.1:8000/docs
 
 Endpoints
@@ -20,7 +20,7 @@ import requests
 from fastapi import FastAPI, HTTPException
 from bs4 import BeautifulSoup
 
-from eurlex_texts import CELEX_URL, EURLEX_URL, SPARQL_URL, _html_parts, com_ref, summarise
+from .eurlex_texts import CELEX_URL, EURLEX_URL, SPARQL_URL, _html_parts, com_ref, summarise
 
 app = FastAPI(title="EUR-Lex proposals")
 
@@ -190,7 +190,7 @@ def get_one(celex: str) -> dict | None:
     out["summary"] = summarise(text, out["title"]) if text else out["title"]
     cat = category(celex)
     if not cat:  # ~6% of proposals have no directory code: nearest chapter by embeddings
-        from eurlex_scores import clean_title, nearest_chapter
+        from .eurlex_scores import clean_title, nearest_chapter
 
         code = nearest_chapter(f"{clean_title(out['title'])}. {out['summary']}", CHAPTERS)
         cat = {"category": CHAPTERS[code], "subcategory": "", "category_code": code,
@@ -229,7 +229,7 @@ def analysis(celex: str):
 
     The first call loads the embedding model and embeds every proposal since 2016 (~30 s).
     """
-    from eurlex_scores import clean_title, disruptive_acceptable, left_right
+    from .eurlex_scores import clean_title, disruptive_acceptable, left_right
 
     p = _get_or_404(celex)
     score, nearest = disruptive_acceptable(p["initiative_id"], p["title"], p["filing_date"])

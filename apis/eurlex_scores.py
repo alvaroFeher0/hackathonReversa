@@ -90,7 +90,7 @@ def nearest_chapter(text: str, chapters: dict[str, str]) -> str:
 @lru_cache(maxsize=1)
 def _corpus():
     """All Commission proposals since CORPUS_FROM with their title embeddings (built once)."""
-    from eurlex_api import list_range
+    from .eurlex_api import list_range
 
     # Skip corrigenda (CELEX ending in R(01), ...): same proposal, not a separate precedent
     rows = [r for r in list_range(CORPUS_FROM, date.today().isoformat()) if r["title"] and "R(" not in r["initiative_id"]]

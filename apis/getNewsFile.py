@@ -11,13 +11,13 @@ Output: data/news_headlines.csv, one row per article:
         initiative_id, proposal_date, news_query, seendate, title, url, domain, language, sourcecountry
 
 Usage (batch):
-  python getNewsFile.py --smoke                       # 5 most recent proposals, checks everything works
-  python getNewsFile.py                               # all proposals from 2017 (~1 request per proposal)
-  python getNewsFile.py --limit 200 --window-days 180
+  python -m apis.getNewsFile --smoke                       # 5 most recent proposals, checks everything works
+  python -m apis.getNewsFile                               # all proposals from 2017 (~1 request per proposal)
+  python -m apis.getNewsFile --limit 200 --window-days 180
 
 Usage (API):
-  python getNewsFile.py --serve                       # http://127.0.0.1:8000, docs at /docs
-  python getNewsFile.py --serve --host 0.0.0.0        # reachable from other machines on the network
+  python -m apis.getNewsFile --serve                       # http://127.0.0.1:8000, docs at /docs
+  python -m apis.getNewsFile --serve --host 0.0.0.0        # reachable from other machines on the network
   curl "http://127.0.0.1:8000/headlines?celex=52021PC0206"
   curl "http://127.0.0.1:8000/headlines?celex=52021PC0206&lang=english&limit=20"
   curl "http://127.0.0.1:8000/headlines?title=Artificial%20Intelligence%20Act&date=2021-04-21"
@@ -61,7 +61,7 @@ PAUSE = 6  # seconds between requests (GDELT asks for at most one every 5 s)
 COOLDOWN = 120  # seconds of silence for everybody after a 429
 MAX_RECORDS = 250  # GDELT maximum per call
 
-DATA = Path(__file__).resolve().parent / "data"  # works from any working directory
+DATA = Path(__file__).resolve().parent.parent / "data"  # repo-root data/, from any working directory
 RAW = DATA / "raw" / "news"
 SESSION = requests.Session()
 SESSION.headers["User-Agent"] = "eu-laws-news-headlines (hackathon, research use)"
