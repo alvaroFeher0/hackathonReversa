@@ -1,0 +1,8 @@
+fastapi==0.142.2
+pandas==3.0.6
+protobuf==7.36.2
+requests==2.34.2
+sentencepiece==0.2.2
+torch==2.14.1
+transformers==5.18.0
+uvicorn==0.54.0
