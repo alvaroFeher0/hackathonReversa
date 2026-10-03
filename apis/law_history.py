@@ -1,20 +1,21 @@
-"""EU law data from a CELEX number. You only need the CELEX (and optionally up_to).
+"""EU law data from a proposal CELEX. You only need the CELEX (and optionally up_to).
 
-HOW TO CALL EACH FUNCTION (AI Act CELEX is "32024R1689"):
+HOW TO CALL EACH FUNCTION (AI Act proposal CELEX is "52021PC0206"):
 
     from apis.law_history import get_consultation_count, get_eu_votings
 
     # 1) Number of public consultations (Have Your Say portal)
-    get_consultation_count("32024R1689")                  # -> 3
-    get_consultation_count("32024R1689", up_to="2021-01-01")  # -> 2 (only rounds published up to that date)
+    get_consultation_count("52021PC0206")                  # -> 3
+    get_consultation_count("52021PC0206", up_to="2021-01-01")  # -> 2 (only rounds published up to that date)
 
     # 2) European Parliament votings summary
-    get_eu_votings("32024R1689")                          # -> dict with n_votings, in_favor_increase,
+    get_eu_votings("52021PC0206")                          # -> dict with n_votings, in_favor_increase,
                                                           #    in_favor_variability and final_vote
-    get_eu_votings("32024R1689", up_to="2023-12-31")      # -> same, only votes up to that date
+    get_eu_votings("52021PC0206", up_to="2023-12-31")      # -> same, only votes up to that date
 
 INPUTS (both functions):
-    celex : str  - EU CELEX number, e.g. "32024R1689". URLs containing it also work.
+    celex : str  - Commission proposal CELEX (sector 5), e.g. "52021PC0206". URLs containing it also work.
+            Adopted-act CELEX ("3yyyy...") are rejected.
     up_to : optional cutoff ("YYYY-MM-DD" or datetime). Only data with date <= up_to counts.
             None (default) = all data.
 
@@ -46,10 +47,10 @@ _STOP = {"regulation", "of", "the", "european", "parliament", "and", "council",
 # ---------------------------------------------------------------------------
 
 def _normalize_celex(celex: str) -> str:
-    """Extract a clean CELEX from a plain id or a URL: a law ("32024R1689") or a proposal ("52021PC0206")."""
-    m = re.search(r"3\d{4}[A-Z]\d{3,4}|5\d{4}PC\d{4}", str(celex).upper())
+    """Extract a clean proposal CELEX ("52021PC0206") from a plain id or a URL."""
+    m = re.search(r"5\d{4}PC\d{4}", str(celex).upper())
     if not m:
-        raise ValueError(f"Invalid CELEX {celex!r}. E.g. '32024R1689' (AI Act).")
+        raise ValueError(f"Invalid proposal CELEX {celex!r}. E.g. '52021PC0206' (AI Act proposal).")
     return m.group(0)
 
 
@@ -80,9 +81,9 @@ def _cellar_notice(celex: str) -> str:
 # ---------------------------------------------------------------------------
 # FUNCTION 1: number of public consultations
 # ---------------------------------------------------------------------------
-# INPUT:  celex (str, e.g. "32024R1689"), up_to (optional date, default all)
+# INPUT:  celex (str, proposal CELEX e.g. "52021PC0206"), up_to (optional date, default all)
 # OUTPUT: int, e.g. AI Act -> 3 (2 when up_to="2021-01-01")
-# HOW:    CELEX -> CELLAR title + proposal COM -> Have Your Say search ->
+# HOW:    proposal CELEX -> CELLAR title + COM -> Have Your Say search ->
 #         initiative whose publication references that COM -> count publications.
 
 def _norm_com(s: str) -> str:
@@ -153,7 +154,7 @@ def _resolve_initiative_id(celex: str) -> str:
 
 
 def get_consultation_count(celex: str, up_to=None) -> int:
-    """Number of public consultations for a CELEX (e.g. "32024R1689" = AI Act -> 3).
+    """Number of public consultations for a CELEX (e.g. "52021PC0206" = AI Act -> 3).
 
     INPUT:  celex (str), up_to (optional "YYYY-MM-DD"/datetime; only rounds
             with publishedDate <= up_to count).
@@ -169,7 +170,7 @@ def get_consultation_count(celex: str, up_to=None) -> int:
 # ---------------------------------------------------------------------------
 # FUNCTION 2: European Parliament votings summary
 # ---------------------------------------------------------------------------
-# INPUT:  celex (str, e.g. "32024R1689"), up_to (optional date, default all)
+# INPUT:  celex (str, proposal CELEX e.g. "52021PC0206"), up_to (optional date, default all)
 # OUTPUT: dict {n_votings, in_favor_increase, in_favor_variability, final_vote}
 #   n_votings: total EP plenary votes found (AI Act -> 34)
 #   in_favor_increase: last minus first in-favor share as a fraction
@@ -178,7 +179,7 @@ def get_consultation_count(celex: str, up_to=None) -> int:
 #     (std / 0.5; 0 = stable, 1 = swinging between extremes)
 #   final_vote: {voting_date, in_favor_pct, against_pct, abstentions_pct,
 #     attendees, outcome} of the last vote (None if no votings)
-# HOW:    CELEX -> CELLAR procedure link -> EP Open Data procedure events +
+# HOW:    proposal CELEX -> CELLAR procedure link -> EP Open Data procedure events +
 #         plenary decisions (vote counts).
 
 def _ep_json(url: str):
@@ -200,7 +201,7 @@ def _resolve_process_id(celex: str) -> str:
 
 
 def get_eu_votings(celex: str, up_to=None) -> dict:
-    """EP votings summary for a CELEX (e.g. "32024R1689" = AI Act).
+    """EP votings summary for a CELEX (e.g. "52021PC0206" = AI Act).
 
     INPUT:  celex (str), up_to (optional "YYYY-MM-DD"/datetime; only votes
             with voting_date <= up_to count).
@@ -272,6 +273,6 @@ def get_eu_votings(celex: str, up_to=None) -> dict:
 
 
 if __name__ == "__main__":
-    print("consultations:", get_consultation_count("32024R1689"))
-    print("consultations up to 2021-01-01:", get_consultation_count("32024R1689", "2021-01-01"))
-    print(json.dumps(get_eu_votings("32024R1689"), indent=2))
+    print("consultations:", get_consultation_count("52021PC0206"))
+    print("consultations up to 2021-01-01:", get_consultation_count("52021PC0206", "2021-01-01"))
+    print(json.dumps(get_eu_votings("52021PC0206"), indent=2))
