@@ -27,11 +27,13 @@ OUTPUTS:
 import json
 import re
 import statistics
+import time
 import urllib.error
 import urllib.parse
 import urllib.request
 from collections import Counter
 from datetime import datetime
+from functools import lru_cache
 
 _BR_API = "https://ec.europa.eu/info/law/better-regulation/brpapi"
 _EP_API = "https://data.europarl.europa.eu/api/v2"
@@ -70,11 +72,24 @@ def _to_datetime(value) -> datetime:
     return datetime.fromisoformat(s[:10])
 
 
+def _urlopen(req, timeout: int):
+    """urlopen that waits and retries when the server is rate-limiting (429) or briefly down (503)."""
+    for attempt in range(5):
+        try:
+            return urllib.request.urlopen(req, timeout=timeout)
+        except urllib.error.HTTPError as e:
+            if e.code not in (429, 503) or attempt == 4:
+                raise
+            wait = e.headers.get("Retry-After")
+            time.sleep(int(wait) if wait and wait.isdigit() else 10 * 2 ** attempt)
+
+
+@lru_cache(maxsize=64)  # same CELEX asked for several cutoff dates: fetch once
 def _cellar_notice(celex: str) -> str:
     """Raw CELLAR metadata (XML) for a CELEX: title, procedure link, proposal COMs."""
     req = urllib.request.Request(f"http://publications.europa.eu/resource/celex/{celex}",
                                  headers={"User-Agent": "Mozilla/5.0", "Accept": "application/xml;notice=object"})
-    with urllib.request.urlopen(req, timeout=30) as r:
+    with _urlopen(req, timeout=30) as r:
         return r.read().decode("utf-8", errors="ignore")
 
 
@@ -97,21 +112,24 @@ def _norm_com(s: str) -> str:
     return s
 
 
+@lru_cache(maxsize=4096)
 def _hys_search(text: str, size: int = 8) -> list:
     qs = urllib.parse.urlencode({"language": "EN", "page": 0, "size": size, "text": text})
     req = urllib.request.Request(_BR_API + "/searchInitiatives?" + qs,
                                  headers={"User-Agent": "Mozilla/5.0", "Accept": "application/json"})
-    with urllib.request.urlopen(req, timeout=20) as r:
+    with _urlopen(req, timeout=20) as r:
         return json.loads(r.read().decode("utf-8")).get("initiativeResultDtoPage", {}).get("content", [])
 
 
+@lru_cache(maxsize=4096)
 def _hys_group(initiative_id) -> dict:
     req = urllib.request.Request(f"{_BR_API}/groupInitiatives/{int(float(initiative_id))}",
                                  headers={"User-Agent": "Mozilla/5.0", "Accept": "application/json"})
-    with urllib.request.urlopen(req, timeout=20) as r:
+    with _urlopen(req, timeout=20) as r:
         return json.loads(r.read().decode("utf-8"))
 
 
+@lru_cache(maxsize=4096)
 def _resolve_initiative_id(celex: str) -> str:
     """Find the Have Your Say initiative behind a CELEX (via its proposal COM)."""
     celex = _normalize_celex(celex)
@@ -143,7 +161,7 @@ def _resolve_initiative_id(celex: str) -> str:
         g = _hys_group(iid)
         refs = {_norm_com(p.get("reference", "")) for p in g.get("publications", [])}
         com_score = sum(coms[r] for r in refs & set(coms))
-        blob = g.get("shortTitle", "") + " " + " ".join(p.get("title", "") for p in g.get("publications", []))
+        blob = (g.get("shortTitle") or "") + " " + " ".join(p.get("title") or "" for p in g.get("publications", []))
         score = len(tokens & {w for w in re.findall(r"[a-z]{4,}", blob.lower()) if w not in _STOP})
         key = (com_score, score, -float(iid))
         if key > best_key:
@@ -164,7 +182,8 @@ def get_consultation_count(celex: str, up_to=None) -> int:
     if up_to is None:
         return len(pubs)
     cutoff = _to_datetime(up_to)
-    return sum(1 for p in pubs if _to_datetime(p.get("publishedDate")) <= cutoff)
+    # Publications without a date are not published yet: they do not count before any cutoff
+    return sum(1 for p in pubs if p.get("publishedDate") and _to_datetime(p["publishedDate"]) <= cutoff)
 
 
 # ---------------------------------------------------------------------------
@@ -172,7 +191,7 @@ def get_consultation_count(celex: str, up_to=None) -> int:
 # ---------------------------------------------------------------------------
 # INPUT:  celex (str, proposal CELEX e.g. "52021PC0206"), up_to (optional date, default all)
 # OUTPUT: dict {n_votings, in_favor_increase, in_favor_variability, final_vote}
-#   n_votings: total EP plenary votes found (AI Act -> 34)
+#   n_votings: total EP plenary votes found (AI Act -> 30)
 #   in_favor_increase: last minus first in-favor share as a fraction
 #     (10% -> 80% gives 0.7; negative if support fell)
 #   in_favor_variability: 0-1 unpredictability of in-favor shares
@@ -182,15 +201,23 @@ def get_consultation_count(celex: str, up_to=None) -> int:
 # HOW:    proposal CELEX -> CELLAR procedure link -> EP Open Data procedure events +
 #         plenary decisions (vote counts).
 
+@lru_cache(maxsize=4096)
 def _ep_json(url: str):
     req = urllib.request.Request(url, headers=_EP_HEADERS)
-    with urllib.request.urlopen(req, timeout=30) as r:
+    try:
+        r = _urlopen(req, timeout=30)
+    except urllib.error.HTTPError as e:
+        if e.code == 404:  # Parliament has no record of it (no EP role, or too recent): no votes
+            return None
+        raise
+    with r:
         if r.status == 204:
             return None
         txt = r.read().decode("utf-8").strip()
         return json.loads(txt) if txt else None
 
 
+@lru_cache(maxsize=4096)
 def _resolve_process_id(celex: str) -> str:
     """Find the EP procedure (e.g. "2021-0106") behind a CELEX (via CELLAR)."""
     celex = _normalize_celex(celex)
@@ -211,20 +238,23 @@ def get_eu_votings(celex: str, up_to=None) -> dict:
     cutoff = _to_datetime(up_to) if up_to is not None else None
 
     events = (_ep_json(f"{_EP_API}/procedures/{pid}/events") or {}).get("data", [])
-    sittings, reports = set(), set()
-    for e in events:
-        aid = e.get("activity_id", "")
-        if aid.startswith("MTG-PL-"):
-            sittings.add("-".join(aid.split("-")[:5]))
-        for k in ("based_on_a_realization_of", "decided_on_a_realization_of"):
-            for d in e.get(k) or []:
-                if "/doc/A-" in d:
-                    base = d.split("/")[-1]
-                    reports.add(base)
-                    p = base.split("-")
-                    if len(p) == 4:
-                        reports.add(f"{p[0]}{p[1]}-{p[3]}/{p[2]}")
-    reports = [r for r in reports if r.startswith("A-") or r.startswith("A9")]
+    sittings = {"-".join(e["activity_id"].split("-")[:5])
+                for e in events if e.get("activity_id", "").startswith("MTG-PL-")}
+    # Reports of THIS procedure only: the plenary agenda items also list the reports of every other
+    # file debated under the same item. Labels cite them as "A9-0188/2023".
+    proc = ((_ep_json(f"{_EP_API}/procedures/{pid}") or {}).get("data") or [{}])[0]
+    reports = []
+    for d in proc.get("created_a_realization_of") or []:
+        p = d.split("/")[-1].split("-")
+        if len(p) == 4 and p[0] == "A":
+            reports.append(f"A{p[1]}-{p[3]}/{p[2]}")
+    # Files voted without a report (urgent procedure) are labelled with the procedure reference
+    # ("2021/0012(COD)") or title; the Commission proposal's own C-document is not linked reliably.
+    if proc.get("label"):
+        reports.append(proc["label"])
+    title = ((proc.get("process_title") or {}).get("en") or "").strip()
+    if len(title) >= 20:
+        reports.append(title)
 
     votes = []
     for sitting in sorted(sittings):
@@ -235,9 +265,9 @@ def get_eu_votings(celex: str, up_to=None) -> dict:
             if not batch:
                 break
             for d in batch:
-                labels = d.get("activity_label") or {}
+                labels = " ".join(str(v) for v in (d.get("activity_label") or {}).values())
                 docs = json.dumps(d.get("decided_on_a_realization_of") or [])
-                if not any(r in json.dumps(labels, default=str) or r in docs for r in reports):
+                if not any(r in labels or r in docs for r in reports):
                     continue
                 try:
                     vdate = datetime.strptime(d.get("activity_date"), "%Y-%m-%d")
@@ -256,6 +286,7 @@ def get_eu_votings(celex: str, up_to=None) -> dict:
                     "abstentions_pct": round(100 * ab / total, 2) if total else 0.0,
                     "attendees": d.get("number_of_attendees"),
                     "outcome": (d.get("decision_outcome") or "").split("/")[-1] or None,
+                    "counted": total > 0,
                 })
             if len(batch) < 50:
                 break
@@ -265,9 +296,10 @@ def get_eu_votings(celex: str, up_to=None) -> dict:
     if not votes:
         return {"n_votings": 0, "in_favor_increase": 0.0,
                 "in_favor_variability": 0.0, "final_vote": None}
-    shares = [v["in_favor_pct"] / 100 for v in votes]
+    # Votes without counts (show of hands) say nothing about the in-favor share
+    shares = [v["in_favor_pct"] / 100 for v in votes if v.pop("counted")]
     return {"n_votings": len(votes),
-            "in_favor_increase": round(shares[-1] - shares[0], 4),
+            "in_favor_increase": round(shares[-1] - shares[0], 4) if shares else 0.0,
             "in_favor_variability": round(min(statistics.pstdev(shares), 0.5) / 0.5, 4) if len(shares) > 1 else 0.0,
             "final_vote": votes[-1]}
 
