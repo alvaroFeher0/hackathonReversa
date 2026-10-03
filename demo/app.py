@@ -297,7 +297,7 @@ def predict_page() -> None:
         c1, c2, c3 = st.columns([3, 2, 1.2], vertical_alignment="bottom")
         celex = c1.text_input("CELEX of the Commission proposal", value="52021PC0206",
                               help="Sector 5 preparatory act, e.g. 52021PC0206 (AI Act)")
-        qd = c2.date_input("Query date (nothing after it is used)", value=date(2023, 6, 1),
+        qd = c2.date_input("Query date (nothing after it is used)", value=date(2023, 7, 13),
                            min_value=date(2018, 1, 1), max_value=date.today())
         go_ = c3.form_submit_button("Predict ⚡", width="stretch", type="primary")
     if not go_ and "last" not in st.session_state:
@@ -375,6 +375,7 @@ def predict_page() -> None:
     with st.expander("Model inputs (exactly what the models received)"):
         st.json({"approval_model": {k: f.get(k) for k in r["model_features"]},
                  "timing_model": {"filing_date": str(r["filing_date"]), "title": r["title"], **r["meta"]},
+                 "timing_model_metadata_as_of_query_date": r["capping"],
                  "display_only": {k: v for k, v in f.items() if k.startswith("econ_")}})
 
 
